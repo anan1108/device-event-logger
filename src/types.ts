@@ -4,6 +4,7 @@ export type Env = {
   API_KEY: string;
   DATABASE_URL: string;
   TZ_OFFSET?: string;
+  BARK_URL?: string;
 };
 
 export type Vars = {
@@ -29,3 +30,4 @@ export type EventQuery = {
 
 export type JsonRpcId = string | number | null;
 export type JsonRpcMessage = Record<string, unknown>;
+

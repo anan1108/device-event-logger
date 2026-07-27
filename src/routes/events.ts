@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import type { Env, Vars } from "../types.ts";
-import { parseEventQueryFromUrl, queryEvents } from "../lib/queries.ts";
-import { withRetry } from "../lib/db.ts";
+import type { Env, Vars } from "../types.js";
+import { parseEventQueryFromUrl, queryEvents } from "../lib/queries.js";
+import { withRetry } from "../lib/db.js";
 
 const events = new Hono<{ Bindings: Env; Variables: Vars }>();
 

@@ -1,20 +1,17 @@
 import { Hono } from "hono";
-import type { Env, Vars } from "./types.ts";
-import { corsMiddleware } from "./middleware/cors.ts";
-import { authMiddleware } from "./middleware/auth.ts";
-import { createSql } from "./lib/db.ts";
-import { parseOffsetEnv } from "./lib/timezone.ts";
-import { events } from "./routes/events.ts";
-import { mcp } from "./routes/mcp.ts";
+import type { Env, Vars } from "./types.js";
+import { corsMiddleware } from "./middleware/cors.js";
+import { authMiddleware } from "./middleware/auth.js";
+import { createSql } from "./lib/db.js";
+import { parseOffsetEnv } from "./lib/timezone.js";
+import { events } from "./routes/events.js";
+import { mcp } from "./routes/mcp.js";
 import type postgres from "postgres";
 
-export type AppOptions = {
-  postgresOptions?: Record<string, unknown>;
-};
+export type AppOptions = { postgresOptions?: Record<string, unknown>; };
 
 export function createApp(options?: AppOptions) {
   const app = new Hono<{ Bindings: Env; Variables: Vars }>();
-
   let sqlInstance: postgres.Sql | null = null;
   let cachedOffsetMinutes: number | null = null;
 
@@ -49,9 +46,11 @@ export function createApp(options?: AppOptions) {
         CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
       `);
     }
+
     if (cachedOffsetMinutes === null) {
       cachedOffsetMinutes = parseOffsetEnv(c.env.TZ_OFFSET);
     }
+
     c.set("sql", sqlInstance);
     c.set("offsetMinutes", cachedOffsetMinutes);
     await next();

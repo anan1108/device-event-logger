@@ -42,8 +42,7 @@ const QUERY_EVENTS_TOOL = {
       },
       type: {
         type: "string",
-        description:
-          "Event type filter (dot-separated lowercase alphanumeric, e.g. 'app.open'). Prefix match when no dot is present; exact match otherwise. Use the list_event_types tool to discover available types.",
+        description: "Event type filter (dot-separated lowercase alphanumeric, e.g. 'app.open'). Prefix match when no dot is present; exact match otherwise. Use the list_event_types tool to discover available types.",
       },
       value: {
         type: "string",
@@ -75,12 +74,8 @@ const QUERY_EVENTS_TOOL = {
           properties: {
             id: { type: "integer" },
             type: { type: "string" },
-            value: {
-              anyOf: [{ type: "string" }, { type: "null" }],
-            },
-            ts: {
-              anyOf: [{ type: "string" }, { type: "null" }],
-            },
+            value: { anyOf: [{ type: "string" }, { type: "null" }] },
+            ts: { anyOf: [{ type: "string" }, { type: "null" }] },
           },
           required: ["id", "type", "value", "ts"],
         },
@@ -93,8 +88,7 @@ const QUERY_EVENTS_TOOL = {
 const LIST_EVENT_TYPES_TOOL = {
   name: "list_event_types",
   title: "List Event Types",
-  description:
-    "List all distinct event types currently stored in the database. Use this to discover available types before querying events.",
+  description: "List all distinct event types currently stored in the database. Use this to discover available types before querying events.",
   inputSchema: {
     type: "object",
     additionalProperties: false,
@@ -104,12 +98,39 @@ const LIST_EVENT_TYPES_TOOL = {
     type: "object",
     additionalProperties: false,
     properties: {
-      types: {
-        type: "array",
-        items: { type: "string" },
-      },
+      types: { type: "array", items: { type: "string" } },
     },
     required: ["types"],
+  },
+};
+
+const SEND_BARK_TOOL = {
+  name: "send_bark",
+  title: "Send Bark Notification",
+  description: "Send a push notification to the user's iPhone via Bark.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      title: {
+        type: "string",
+        description: "Notification title.",
+      },
+      body: {
+        type: "string",
+        description: "Notification body content.",
+      },
+    },
+    required: ["title", "body"],
+  },
+  outputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      success: { type: "boolean" },
+      message: { type: "string" },
+    },
+    required: ["success", "message"],
   },
 };
 
@@ -134,8 +155,7 @@ function isJsonRpcNotification(message: JsonRpcMessage): boolean {
 }
 
 function isJsonRpcResponse(message: JsonRpcMessage): boolean {
-  return Object.prototype.hasOwnProperty.call(message, "result") ||
-    Object.prototype.hasOwnProperty.call(message, "error");
+  return Object.prototype.hasOwnProperty.call(message, "result") || Object.prototype.hasOwnProperty.call(message, "error");
 }
 
 function getProtocolVersionFromHeaders(c: Context): string {
@@ -178,7 +198,51 @@ async function callListEventTypesTool(sql: postgres.Sql) {
   }
 }
 
-async function handleMcpRequest(message: JsonRpcMessage, sql: postgres.Sql, offsetMinutes: number) {
+async function callSendBarkTool(args: Record<string, unknown>, env: Env) {
+  const barkUrl = env.BARK_URL;
+  if (!barkUrl) {
+    return {
+      content: [{ type: "text", text: "BARK_URL environment variable is not set." }],
+      isError: true,
+    };
+  }
+
+  const title = typeof args.title === "string" ? args.title : "";
+  const body = typeof args.body === "string" ? args.body : "";
+
+  if (!title && !body) {
+    return {
+      content: [{ type: "text", text: "Title or body is required." }],
+      isError: true,
+    };
+  }
+
+  try {
+    const url = `${barkUrl.replace(/\/$/, "")}/${encodeURIComponent(title)}/${encodeURIComponent(body)}`;
+    const response = await fetch(url);
+    const result = await response.json();
+    if (result.code === 200) {
+      return {
+        content: [{ type: "text", text: "Bark notification sent successfully." }],
+        structuredContent: { success: true, message: "Notification sent." },
+        isError: false,
+      };
+    } else {
+      return {
+        content: [{ type: "text", text: `Bark API error: ${result.message || "Unknown error"}` }],
+        isError: true,
+      };
+    }
+  } catch (error) {
+    console.error("Bark send failed:", error);
+    return {
+      content: [{ type: "text", text: "Failed to send Bark notification." }],
+      isError: true,
+    };
+  }
+}
+
+async function handleMcpRequest(message: JsonRpcMessage, sql: postgres.Sql, offsetMinutes: number, env: Env) {
   const id = (message.id ?? null) as JsonRpcId;
   const method = typeof message.method === "string" ? message.method : "";
   const params = (message.params && typeof message.params === "object")
@@ -187,9 +251,7 @@ async function handleMcpRequest(message: JsonRpcMessage, sql: postgres.Sql, offs
 
   switch (method) {
     case "initialize": {
-      const requestedVersion = typeof params.protocolVersion === "string"
-        ? params.protocolVersion
-        : "";
+      const requestedVersion = typeof params.protocolVersion === "string" ? params.protocolVersion : "";
       if (!requestedVersion || !SUPPORTED_MCP_PROTOCOL_VERSIONS.has(requestedVersion)) {
         return jsonRpcError(id, -32602, "Unsupported protocolVersion", {
           supported: Array.from(SUPPORTED_MCP_PROTOCOL_VERSIONS),
@@ -197,10 +259,12 @@ async function handleMcpRequest(message: JsonRpcMessage, sql: postgres.Sql, offs
       }
       return jsonRpcResult(id, {
         protocolVersion: requestedVersion,
-        capabilities: { tools: { listChanged: false } },
+        capabilities: {
+          tools: { listChanged: false },
+        },
         serverInfo: MCP_SERVER_INFO,
         instructions:
-          "This server provides read-only access to user device event records. Use list_event_types to discover available event types, then use query_events to query records by time range, type, and value.",
+          "This server provides read-only access to user device event records. Use list_event_types to discover available event types, then use query_events to query records by time range, type, and value. Use send_bark to send push notifications to your iPhone.",
       });
     }
     case "notifications/initialized":
@@ -209,12 +273,18 @@ async function handleMcpRequest(message: JsonRpcMessage, sql: postgres.Sql, offs
       return jsonRpcResult(id, {});
     case "tools/list":
       return jsonRpcResult(id, {
-        tools: [QUERY_EVENTS_TOOL, LIST_EVENT_TYPES_TOOL],
+        tools: [QUERY_EVENTS_TOOL, LIST_EVENT_TYPES_TOOL, SEND_BARK_TOOL],
       });
     case "tools/call": {
       const name = typeof params.name === "string" ? params.name : "";
       if (name === LIST_EVENT_TYPES_TOOL.name) {
         return jsonRpcResult(id, await callListEventTypesTool(sql));
+      }
+      if (name === SEND_BARK_TOOL.name) {
+        const args = (params.arguments && typeof params.arguments === "object")
+          ? params.arguments as Record<string, unknown>
+          : {};
+        return jsonRpcResult(id, await callSendBarkTool(args, env));
       }
       if (name !== QUERY_EVENTS_TOOL.name) {
         return jsonRpcError(id, -32601, `Unknown tool: ${name || "(empty)"}`);
@@ -232,6 +302,7 @@ async function handleMcpRequest(message: JsonRpcMessage, sql: postgres.Sql, offs
 export async function handleMcpPost(c: Context<{ Bindings: Env; Variables: Vars }>): Promise<Response> {
   const sql = c.var.sql;
   const offsetMinutes = c.var.offsetMinutes;
+  const env = c.env;
 
   // Validate protocol version header
   const version = c.req.header("mcp-protocol-version")?.trim();
@@ -267,7 +338,7 @@ export async function handleMcpPost(c: Context<{ Bindings: Env; Variables: Vars 
         responses.push(jsonRpcError(null, -32600, "Invalid Request"));
         continue;
       }
-      responses.push(await handleMcpRequest(message, sql, offsetMinutes));
+      responses.push(await handleMcpRequest(message, sql, offsetMinutes, env));
     }
     if (!responses.length) {
       return c.body(null, 202);
@@ -281,6 +352,7 @@ export async function handleMcpPost(c: Context<{ Bindings: Env; Variables: Vars 
     c.header("MCP-Protocol-Version", protocolVersion);
     return c.json(jsonRpcError(null, -32600, "Invalid Request"), 400);
   }
+
   const message = body as JsonRpcMessage;
   if (isJsonRpcNotification(message) || isJsonRpcResponse(message)) {
     return c.body(null, 202);
@@ -289,7 +361,8 @@ export async function handleMcpPost(c: Context<{ Bindings: Env; Variables: Vars 
     c.header("MCP-Protocol-Version", protocolVersion);
     return c.json(jsonRpcError(null, -32600, "Invalid Request"), 400);
   }
-  const response = await handleMcpRequest(message, sql, offsetMinutes);
+
+  const response = await handleMcpRequest(message, sql, offsetMinutes, env);
   if (response == null) {
     return c.body(null, 202);
   }

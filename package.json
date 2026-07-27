@@ -1,16 +1,9 @@
 {
   "name": "device-event-logger",
-  "private": true,
+  "version": "1.0.0",
   "type": "module",
-  "engines": {
-    "node": ">=22.0.0"
-  },
-  "scripts": {
-    "start": "node --experimental-strip-types entry/node.ts"
-  },
   "dependencies": {
-    "hono": "^4.12.8",
-    "@hono/node-server": "^1.13.8",
-    "postgres": "^3.4.8"
+    "hono": "^4.0.0",
+    "postgres": "^3.4.0"
   }
 }

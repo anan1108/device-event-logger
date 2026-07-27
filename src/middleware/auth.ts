@@ -1,5 +1,5 @@
 import type { Context, Next } from "hono";
-import type { Env, Vars } from "../types.ts";
+import type { Env, Vars } from "../types.js";
 
 export async function authMiddleware(
   c: Context<{ Bindings: Env; Variables: Vars }>,

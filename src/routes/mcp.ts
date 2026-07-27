@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import type { Env, Vars } from "../types.ts";
-import { handleMcpPost } from "../lib/mcp-protocol.ts";
+import type { Env, Vars } from "../types.js";
+import { handleMcpPost } from "../lib/mcp-protocol.js";
 
 const mcp = new Hono<{ Bindings: Env; Variables: Vars }>();
 
